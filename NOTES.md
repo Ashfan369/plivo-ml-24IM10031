@@ -1,3 +1,12 @@
 # NOTES
 
-The model reads only audio before `pause_start` and uses three signal families: (1) prosody of the final ~1.5 s — energy decay into the pause, speaker-median-normalized final pitch level, slope and fall (statements fall, continuations stay level/rise), final voiced-run lengthening and the unvoiced tail; (2) a mean-normalized log-mel snapshot of the last 300 ms plus its delta against the previous 300 ms, a crude "what sound did they end on" cue that separates trailing fillers/fricatives from clean stops; (3) turn context — elapsed time, number of prior pauses, and speech-burst length since the last pause. Training weights hold pauses by their duration, because only holds longer than the agent's action delay can ever cause a false cutoff, so the classifier spends its capacity suppressing exactly the dangerous long hesitations. A 9-model blend (3 seeds × 3 gradient-boosting variants) trained jointly on English+Hindi is shipped, since single configs oscillated between languages on this small dataset. It still fails on long "thinking" hesitations that end with a fully finished-sounding clause (flat falling pitch, then 1–3 s of silence before the user adds a constraint), and on very early pauses (<1 s of context) where pitch statistics are undefined. English remains harder (OOF AUC 0.63 vs 0.76 Hindi) because its hold pauses are prosodically well-formed sentence ends. With one more day I would train a small causal frame-level GRU on log-mel frames (PyTorch, CPU-feasible at this scale) so silence elapsed *during* the pause updates p_eot online, add per-speaker online calibration of pitch/energy statistics, and hand-label filler words in the errors to build a dedicated filler detector.
+The model only listens to audio before it stops. It uses three things to figure this out:
+* how the speakers voice sounds in the last couple of seconds before the pause like how loud it is and if the pitch goes up or down
+* what sound the speaker ends with like if they make a sharp stop or a soft sound
+* what has been happening in the conversation so far like how long it has been since the last pause and how many pauses there have been
+
+The model is trained to pay attention to how long the pauses are because only long pauses can cause problems.
+It uses a combination of nine models to make a decision because one model was not good enough for both English and Hindi.
+With this the model still has trouble with pauses where the speaker is thinking and then adds more to what they were saying.
+It also has trouble, with short pauses, where it is hard to figure out what is going on.
+English is harder for the model to understand than Hindi because in English pauses can sound like the end of a sentence.
